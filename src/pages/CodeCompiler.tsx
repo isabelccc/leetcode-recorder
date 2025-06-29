@@ -4,6 +4,29 @@ import { Play, Download, Upload, Save, Settings } from 'lucide-react';
 import { CodeExecutionResult, CodeTemplate } from '../types';
 import toast from 'react-hot-toast';
 
+// Judge0 API configuration
+const JUDGE0_API_URL = (import.meta as any).env?.VITE_JUDGE0_API_URL || 'https://judge0-ce.p.rapidapi.com';
+
+// Language mapping for Judge0
+const languageMapping: Record<string, { id: number; name: string; extension: string }> = {
+  javascript: { id: 63, name: 'JavaScript (Node.js 18.15.0)', extension: 'js' },
+  python: { id: 71, name: 'Python (3.8.1)', extension: 'py' },
+  java: { id: 62, name: 'Java (OpenJDK 13.0.1)', extension: 'java' },
+  cpp: { id: 54, name: 'C++ (GCC 9.2.0)', extension: 'cpp' },
+  c: { id: 50, name: 'C (GCC 9.2.0)', extension: 'c' },
+  csharp: { id: 51, name: 'C# (Mono 6.6.0.161)', extension: 'cs' },
+  go: { id: 60, name: 'Go (1.13.5)', extension: 'go' },
+  rust: { id: 73, name: 'Rust (1.40.0)', extension: 'rs' },
+  typescript: { id: 74, name: 'TypeScript (3.7.4)', extension: 'ts' },
+  php: { id: 68, name: 'PHP (7.4.1)', extension: 'php' },
+  ruby: { id: 72, name: 'Ruby (2.7.0)', extension: 'rb' },
+  swift: { id: 83, name: 'Swift (5.2.3)', extension: 'swift' },
+  kotlin: { id: 78, name: 'Kotlin (1.3.70)', extension: 'kt' },
+  scala: { id: 81, name: 'Scala (2.13.2)', extension: 'scala' },
+  r: { id: 80, name: 'R (4.0.0)', extension: 'r' },
+  dart: { id: 87, name: 'Dart (2.19.2)', extension: 'dart' }
+};
+
 const CodeCompiler: React.FC = () => {
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
@@ -74,77 +97,124 @@ int main() {
   };
 
   const executeCode = async () => {
+    if (!code.trim()) {
+      toast.error('Please enter some code to execute');
+      return;
+    }
+
     setIsRunning(true);
-    setOutput('Running...\n');
+    setOutput('Compiling and running code...\n');
     
     try {
-      // Simulate code execution (in a real app, you'd send to a backend)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      let result: CodeExecutionResult;
-      
-      switch (language) {
-        case 'javascript':
-          try {
-            // Create a safe execution environment
-            const safeEval = new Function('console', code);
-            let consoleOutput = '';
-            const mockConsole = {
-              log: (...args: any[]) => {
-                consoleOutput += args.join(' ') + '\n';
-              }
-            };
-            
-            safeEval(mockConsole);
-            result = {
-              success: true,
-              output: consoleOutput || 'Code executed successfully',
-              executionTime: Math.random() * 100 + 50,
-              memoryUsage: Math.random() * 10 + 5
-            };
-          } catch (error) {
-            result = {
-              success: false,
-              output: '',
-              error: error instanceof Error ? error.message : 'Unknown error'
-            };
-          }
-          break;
-          
-        case 'python':
-          // Simulate Python execution
-          result = {
-            success: true,
-            output: 'Hello, LeetCode!\n',
-            executionTime: Math.random() * 100 + 50,
-            memoryUsage: Math.random() * 10 + 5
-          };
-          break;
-          
-        default:
-          result = {
-            success: true,
-            output: 'Code executed successfully\n',
-            executionTime: Math.random() * 100 + 50,
-            memoryUsage: Math.random() * 10 + 5
-          };
+      const languageInfo = languageMapping[language];
+      if (!languageInfo) {
+        throw new Error(`Unsupported language: ${language}`);
       }
-      
-      setExecutionResult(result);
-      setOutput(result.success ? result.output : `Error: ${result.error}\n`);
-      
-      if (result.success) {
+
+      // Step 1: Submit code to Judge0
+      const submitResponse = await fetch(`${JUDGE0_API_URL}/submissions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+          'X-RapidAPI-Key': (import.meta as any).env?.VITE_RAPIDAPI_KEY || '',
+        },
+        body: JSON.stringify({
+          source_code: code,
+          language_id: languageInfo.id,
+          stdin: '',
+          expected_output: null,
+          cpu_time_limit: 5,
+          memory_limit: 512000,
+          enable_network: false
+        })
+      });
+
+      if (!submitResponse.ok) {
+        throw new Error(`Failed to submit code: ${submitResponse.statusText}`);
+      }
+
+      const submission = await submitResponse.json();
+      const token = submission.token;
+
+      // Step 2: Poll for results
+      let result = null;
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        
+        const resultResponse = await fetch(`${JUDGE0_API_URL}/submissions/${token}`, {
+          headers: {
+            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+            'X-RapidAPI-Key': (import.meta as any).env?.VITE_RAPIDAPI_KEY || '',
+          }
+        });
+
+        if (!resultResponse.ok) {
+          throw new Error(`Failed to get result: ${resultResponse.statusText}`);
+        }
+
+        result = await resultResponse.json();
+        
+        // Check if execution is complete
+        if (result.status && result.status.id > 2) {
+          break;
+        }
+        
+        attempts++;
+      }
+
+      if (!result) {
+        throw new Error('Execution timeout');
+      }
+
+      // Step 3: Process the result
+      const statusId = result.status?.id;
+      let executionResult: CodeExecutionResult;
+
+      if (statusId === 3) {
+        // Accepted
+        executionResult = {
+          success: true,
+          output: result.stdout || 'Code executed successfully',
+          executionTime: result.time || 0,
+          memoryUsage: result.memory || 0
+        };
+        setOutput(executionResult.output);
         toast.success('Code executed successfully!');
       } else {
+        // Error or other status
+        let errorMessage = '';
+        if (result.stderr) {
+          errorMessage = result.stderr;
+        } else if (result.compile_output) {
+          errorMessage = result.compile_output;
+        } else {
+          errorMessage = result.status?.description || 'Execution failed';
+        }
+
+        executionResult = {
+          success: false,
+          output: '',
+          error: errorMessage
+        };
+        setOutput(`Error: ${errorMessage}`);
         toast.error('Code execution failed!');
       }
+
+      setExecutionResult(executionResult);
+      
     } catch (error) {
+      console.error('Code execution error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Execution failed';
       setExecutionResult({
         success: false,
         output: '',
-        error: 'Execution failed'
+        error: errorMessage
       });
-      setOutput('Execution failed\n');
+      setOutput(`Error: ${errorMessage}`);
       toast.error('Code execution failed!');
     } finally {
       setIsRunning(false);
@@ -156,7 +226,8 @@ int main() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `solution.${language}`;
+    const extension = languageMapping[language]?.extension || language;
+    a.download = `solution.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -190,7 +261,7 @@ int main() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Code Compiler</h1>
-            <p className="text-gray-600 mt-2">Write, test, and debug your solutions</p>
+            <p className="text-gray-600 mt-2">Write, test, and debug your solutions with Judge0</p>
           </div>
           
           <div className="flex items-center space-x-3">
@@ -199,10 +270,11 @@ int main() {
               onChange={(e) => handleLanguageChange(e.target.value)}
               className="input w-40"
             >
-              <option value="javascript">JavaScript</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-              <option value="cpp">C++</option>
+              {Object.entries(languageMapping).map(([key, lang]) => (
+                <option key={key} value={key}>
+                  {lang.name}
+                </option>
+              ))}
             </select>
             
             <button
@@ -226,7 +298,7 @@ int main() {
             <div className="flex items-center space-x-2">
               <input
                 type="file"
-                accept=".js,.py,.java,.cpp,.txt"
+                accept=".js,.py,.java,.cpp,.c,.cs,.go,.rs,.ts,.php,.rb,.swift,.kt,.scala,.r,.dart,.txt"
                 onChange={loadCode}
                 className="hidden"
                 id="load-code"
@@ -289,7 +361,7 @@ int main() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Memory Usage:</span>
-                  <span className="font-medium">{executionResult.memoryUsage?.toFixed(2)}MB</span>
+                  <span className="font-medium">{executionResult.memoryUsage?.toFixed(2)}KB</span>
                 </div>
               </div>
             )}

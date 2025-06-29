@@ -23,7 +23,24 @@ Create a `.env` file in your project root with the following variables:
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_OPENAI_API_KEY=your_openai_api_key
+VITE_RAPIDAPI_KEY=your_rapidapi_key
 ```
+
+### Getting API Keys:
+
+#### **Supabase:**
+1. Go to [supabase.com](https://supabase.com) and create a project
+2. In your project dashboard, go to **Settings > API**
+3. Copy your **Project URL** and **anon/public key**
+
+#### **OpenAI (optional - for AI Assistant features):**
+1. Go to [platform.openai.com](https://platform.openai.com/api-keys)
+2. Create an API key
+
+#### **RapidAPI (for Judge0 Code Compiler):**
+1. Go to [rapidapi.com](https://rapidapi.com) and sign up/login
+2. Subscribe to the [Judge0 CE API](https://rapidapi.com/judge0-official/api/judge0-ce)
+3. Copy your RapidAPI key from your dashboard
 
 ## 4. Create Database Tables
 
@@ -170,4 +187,5 @@ With Supabase integration, your app now has:
 - ✅ Problem management
 - ✅ AI analysis storage
 - ✅ Multi-user support
-- ✅ Data persistence across sessions 
+- ✅ Data persistence across sessions
+- ✅ Judge0-powered code compiler with 16+ programming languages 
