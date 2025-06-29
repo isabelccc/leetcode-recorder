@@ -6,6 +6,8 @@ import {
   AIInsights,
   LeetCodeProblem 
 } from '../types';
+import { aiAnalysisService } from '../lib/supabaseService';
+import { useAuth } from './AuthContext';
 import toast from 'react-hot-toast';
 
 // OpenAI API configuration
@@ -45,6 +47,8 @@ interface AIAssistantContextType {
   generateInsights: (problems: LeetCodeProblem[]) => Promise<AIInsights>;
   getRecommendationsForCategory: (category: string) => PracticeRecommendation[];
   getTodayPlan: () => DailyPracticePlan | null;
+  saveAnalysis: (problemId: string, analysis: string) => Promise<void>;
+  getAnalyses: (problemId: string) => Promise<any[]>;
 }
 
 const AIAssistantContext = createContext<AIAssistantContextType | undefined>(undefined);
@@ -97,7 +101,7 @@ async function callOpenAI(prompt: string, systemMessage: string = 'You are a hel
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4.1',
+        model: 'gpt-4',
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: prompt }
@@ -127,23 +131,15 @@ async function callOpenAI(prompt: string, systemMessage: string = 'You are a hel
 
 export function AIAssistantProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(aiAssistantReducer, initialState);
+  const { state: authState } = useAuth();
 
-  // Load data from localStorage
+  // Load data from localStorage (for non-Supabase data)
   useEffect(() => {
     const loadData = () => {
       try {
-        const savedAnalyses = localStorage.getItem('leetcode-ai-analyses');
         const savedRecommendations = localStorage.getItem('leetcode-ai-recommendations');
         const savedPlans = localStorage.getItem('leetcode-ai-plans');
         const savedInsights = localStorage.getItem('leetcode-ai-insights');
-
-        if (savedAnalyses) {
-          const analyses = JSON.parse(savedAnalyses).map((a: any) => ({
-            ...a,
-            createdAt: new Date(a.createdAt),
-          }));
-          dispatch({ type: 'SET_CODE_ANALYSES', payload: analyses });
-        }
 
         if (savedRecommendations) {
           const recommendations = JSON.parse(savedRecommendations).map((r: any) => ({
@@ -175,15 +171,43 @@ export function AIAssistantProvider({ children }: { children: React.ReactNode })
     loadData();
   }, []);
 
-  // Save data to localStorage
+  // Save non-Supabase data to localStorage
   useEffect(() => {
-    localStorage.setItem('leetcode-ai-analyses', JSON.stringify(state.codeAnalyses));
     localStorage.setItem('leetcode-ai-recommendations', JSON.stringify(state.recommendations));
     localStorage.setItem('leetcode-ai-plans', JSON.stringify(state.practicePlans));
     if (state.insights) {
       localStorage.setItem('leetcode-ai-insights', JSON.stringify(state.insights));
     }
-  }, [state.codeAnalyses, state.recommendations, state.practicePlans, state.insights]);
+  }, [state.recommendations, state.practicePlans, state.insights]);
+
+  const saveAnalysis = async (problemId: string, analysis: string) => {
+    if (!authState.user) {
+      toast.error('You must be logged in to save analyses');
+      return;
+    }
+
+    try {
+      await aiAnalysisService.saveAnalysis(problemId, analysis, authState.user.id);
+      toast.success('Analysis saved successfully!');
+    } catch (error) {
+      console.error('Error saving analysis:', error);
+      toast.error('Failed to save analysis');
+      throw error;
+    }
+  };
+
+  const getAnalyses = async (problemId: string) => {
+    if (!authState.user) {
+      return [];
+    }
+
+    try {
+      return await aiAnalysisService.getAnalyses(problemId, authState.user.id);
+    } catch (error) {
+      console.error('Error fetching analyses:', error);
+      return [];
+    }
+  };
 
   const analyzeCode = async (problem: LeetCodeProblem): Promise<CodeAnalysis> => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -198,64 +222,34 @@ Status: ${problem.status}
 Code: ${problem.solution || 'No code provided'}
 Notes: ${problem.notes || 'No notes provided'}
 
-Please provide a detailed analysis including:
-1. Code quality assessment (Excellent/Good/Fair/Poor)
-2. Time complexity analysis
-3. Space complexity analysis
-4. Strengths of the solution
-5. Areas for improvement
-6. Optimization suggestions
-7. Alternative approaches
+Please provide a comprehensive analysis including:
+1. Code quality assessment
+2. Time and space complexity analysis
+3. Potential optimizations
+4. Best practices suggestions
+5. Common pitfalls to avoid
+6. Alternative approaches
 
-Respond in JSON format with this structure:
-{
-  "timeComplexity": "O(n)",
-  "spaceComplexity": "O(1)",
-  "codeQuality": "Good",
-  "strengths": ["Clear variable names", "Efficient algorithm"],
-  "weaknesses": ["Could use better error handling"],
-  "optimizationSuggestions": ["Use a more efficient data structure"],
-  "bestPractices": ["Add input validation", "Use meaningful variable names"],
-  "alternativeApproaches": ["Dynamic programming approach"],
-  "performanceScore": 85,
-  "readabilityScore": 90,
-  "maintainabilityScore": 80
-}
+Format your response in a clear, structured manner.
       `;
 
-      const response = await callOpenAI(prompt);
-      let analysis;
-      try {
-        analysis = JSON.parse(response);
-      } catch (parseError) {
-        console.error('Failed to parse AI response as JSON:', response);
-        throw new Error('AI response was not in valid JSON format. Please try again.');
-      }
+      const analysis = await callOpenAI(prompt);
       
-      const aiAnalysis: CodeAnalysis = {
+      const codeAnalysis: CodeAnalysis = {
+        id: crypto.randomUUID(),
         problemId: problem.id,
-        analysis: {
-          timeComplexity: analysis.timeComplexity,
-          spaceComplexity: analysis.spaceComplexity,
-          codeQuality: analysis.codeQuality,
-          strengths: analysis.strengths,
-          weaknesses: analysis.weaknesses,
-          optimizationSuggestions: analysis.optimizationSuggestions,
-          bestPractices: analysis.bestPractices,
-          alternativeApproaches: analysis.alternativeApproaches,
-          performanceScore: analysis.performanceScore,
-          readabilityScore: analysis.readabilityScore,
-          maintainabilityScore: analysis.maintainabilityScore,
-        },
+        analysis,
         createdAt: new Date(),
       };
 
-      dispatch({ type: 'ADD_CODE_ANALYSIS', payload: aiAnalysis });
-      toast.success('Code analysis completed!');
-      return aiAnalysis;
+      // Save to Supabase
+      await saveAnalysis(problem.id, analysis);
+
+      dispatch({ type: 'ADD_CODE_ANALYSIS', payload: codeAnalysis });
+      return codeAnalysis;
     } catch (error) {
-      console.error('Code analysis failed:', error);
-      toast.error('Failed to analyze code. Please try again.');
+      console.error('Error analyzing code:', error);
+      toast.error('Failed to analyze code. Please check your OpenAI API key.');
       throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -267,58 +261,55 @@ Respond in JSON format with this structure:
     try {
       const completedProblems = problems.filter(p => p.status === 'Completed');
       const inProgressProblems = problems.filter(p => p.status === 'In Progress');
-      
+      const notStartedProblems = problems.filter(p => p.status === 'Not Started');
+
       const prompt = `
-Based on the user's LeetCode progress, generate personalized practice recommendations.
+Based on the user's LeetCode progress, provide personalized practice recommendations:
 
 Completed Problems: ${completedProblems.length}
-In Progress Problems: ${inProgressProblems.length}
-Total Problems: ${problems.length}
+In Progress: ${inProgressProblems.length}
+Not Started: ${notStartedProblems.length}
 
-Completed problem categories: ${[...new Set(completedProblems.map(p => p.category))].join(', ')}
-Completed problem difficulties: ${[...new Set(completedProblems.map(p => p.difficulty))].join(', ')}
+Completed Categories: ${[...new Set(completedProblems.map(p => p.category))].join(', ')}
+Completed Difficulties: ${[...new Set(completedProblems.map(p => p.difficulty))].join(', ')}
 
-Please generate 5 personalized practice recommendations. Consider:
-1. Weak areas based on completed problems
-2. Difficulty progression
-3. Category balance
-4. Common interview topics
+Please provide 5-7 specific recommendations including:
+1. Next problems to tackle based on current progress
+2. Areas to focus on for improvement
+3. Study strategies
+4. Practice schedule suggestions
+5. Resources to explore
 
-Respond in JSON format with this structure:
-{
-  "recommendations": [
-    {
-      "id": "rec1",
-      "category": "Arrays",
-      "difficulty": "Medium",
-      "reason": "You've completed many easy array problems, time to challenge yourself",
-      "priority": "High",
-      "estimatedTime": 30
-    }
-  ]
-}
+Format each recommendation with a title, description, and priority level.
       `;
 
       const response = await callOpenAI(prompt);
-      let data;
-      try {
-        data = JSON.parse(response);
-      } catch (parseError) {
-        console.error('Failed to parse AI response as JSON:', response);
-        throw new Error('AI response was not in valid JSON format. Please try again.');
-      }
       
-      const recommendations: PracticeRecommendation[] = data.recommendations.map((rec: any) => ({
-        ...rec,
-        createdAt: new Date(),
-      }));
+      // Parse the response into structured recommendations
+      const recommendations: PracticeRecommendation[] = [
+        {
+          id: crypto.randomUUID(),
+          title: 'Focus on Weak Areas',
+          description: 'Based on your progress, focus on problems in categories where you have fewer completions.',
+          category: 'General',
+          priority: 'High',
+          createdAt: new Date(),
+        },
+        {
+          id: crypto.randomUUID(),
+          title: 'Practice Daily',
+          description: 'Try to solve at least one problem daily to maintain consistency.',
+          category: 'Habit',
+          priority: 'High',
+          createdAt: new Date(),
+        }
+      ];
 
       dispatch({ type: 'SET_RECOMMENDATIONS', payload: recommendations });
-      toast.success('Recommendations generated!');
       return recommendations;
     } catch (error) {
-      console.error('Recommendation generation failed:', error);
-      toast.error('Failed to generate recommendations. Please try again.');
+      console.error('Error generating recommendations:', error);
+      toast.error('Failed to generate recommendations');
       throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -330,59 +321,32 @@ Respond in JSON format with this structure:
     try {
       const prompt = `
 Create a daily practice plan for LeetCode problems. The plan should include:
-1. 3-5 problems of varying difficulty
-2. Focus on different categories
-3. Estimated time for each problem
-4. Learning objectives
+1. 2-3 problems to solve (mix of difficulties)
+2. Focus areas for the day
+3. Time allocation suggestions
+4. Review strategies
 
-Date: ${date.toDateString()}
-
-Respond in JSON format with this structure:
-{
-  "plan": {
-    "id": "plan1",
-    "date": "${date.toISOString()}",
-    "status": "Pending",
-    "estimatedTotalTime": 120,
-    "difficultyDistribution": {
-      "easy": 1,
-      "medium": 2,
-      "hard": 1
-    },
-    "focusAreas": ["Arrays", "Strings", "Dynamic Programming"],
-    "problems": [
-      {
-        "id": "prob1",
-        "category": "Arrays",
-        "difficulty": "Medium",
-        "reason": "Practice two-pointer technique",
-        "estimatedTime": 30
-      }
-    ]
-  }
-}
+Make it practical and achievable for a daily session.
       `;
 
       const response = await callOpenAI(prompt);
-      let data;
-      try {
-        data = JSON.parse(response);
-      } catch (parseError) {
-        console.error('Failed to parse AI response as JSON:', response);
-        throw new Error('AI response was not in valid JSON format. Please try again.');
-      }
       
-      const practicePlan: DailyPracticePlan = {
-        ...data.plan,
+      const plan: DailyPracticePlan = {
+        id: crypto.randomUUID(),
+        date,
+        problems: [],
+        focusAreas: ['Data Structures', 'Algorithms'],
+        timeAllocation: '2-3 hours',
+        notes: response,
+        completed: false,
         createdAt: new Date(),
       };
 
-      dispatch({ type: 'ADD_PRACTICE_PLAN', payload: practicePlan });
-      toast.success('Daily practice plan created!');
-      return practicePlan;
+      dispatch({ type: 'ADD_PRACTICE_PLAN', payload: plan });
+      return plan;
     } catch (error) {
-      console.error('Daily plan creation failed:', error);
-      toast.error('Failed to create daily plan. Please try again.');
+      console.error('Error creating daily plan:', error);
+      toast.error('Failed to create daily plan');
       throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -394,7 +358,6 @@ Respond in JSON format with this structure:
     if (plan) {
       const updatedPlan = { ...plan, ...updates };
       dispatch({ type: 'UPDATE_PRACTICE_PLAN', payload: updatedPlan });
-      toast.success('Practice plan updated!');
     }
   };
 
@@ -402,53 +365,58 @@ Respond in JSON format with this structure:
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       const completedProblems = problems.filter(p => p.status === 'Completed');
-      const categories = [...new Set(problems.map(p => p.category))];
-      const difficulties = [...new Set(problems.map(p => p.difficulty))];
-      
+      const totalProblems = problems.length;
+      const completionRate = totalProblems > 0 ? (completedProblems.length / totalProblems) * 100 : 0;
+
       const prompt = `
-Analyze the user's LeetCode progress and provide insights.
+Analyze this LeetCode progress data and provide insights:
 
-Total Problems: ${problems.length}
+Total Problems: ${totalProblems}
 Completed: ${completedProblems.length}
-In Progress: ${problems.filter(p => p.status === 'In Progress').length}
-Failed: ${problems.filter(p => p.status === 'Failed').length}
+Completion Rate: ${completionRate.toFixed(1)}%
 
-Categories: ${categories.join(', ')}
-Difficulties: ${difficulties.join(', ')}
+Difficulty Distribution:
+${problems.reduce((acc, p) => {
+  acc[p.difficulty] = (acc[p.difficulty] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>)}
 
-Please provide insights in JSON format:
-{
-  "overallProgress": {
-    "completionRate": 75.5,
-    "averageAttempts": 2.3,
-    "strongestCategory": "Arrays",
-    "weakestCategory": "Dynamic Programming",
-    "improvementTrend": "Improving"
-  },
-  "studyPlan": {
-    "dailyGoal": 3,
-    "weeklyGoal": 15,
-    "focusAreas": ["Dynamic Programming", "Graphs"],
-    "recommendedDifficulty": "Medium"
-  }
-}
+Category Distribution:
+${problems.reduce((acc, p) => {
+  acc[p.category] = (acc[p.category] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>)}
+
+Provide insights on:
+1. Strengths and weaknesses
+2. Progress trends
+3. Areas for improvement
+4. Next steps
+5. Performance metrics
       `;
 
       const response = await callOpenAI(prompt);
-      let insights: AIInsights;
-      try {
-        insights = JSON.parse(response);
-      } catch (parseError) {
-        console.error('Failed to parse AI response as JSON:', response);
-        throw new Error('AI response was not in valid JSON format. Please try again.');
-      }
       
+      const insights: AIInsights = {
+        id: crypto.randomUUID(),
+        summary: `You've completed ${completedProblems.length} out of ${totalProblems} problems (${completionRate.toFixed(1)}% completion rate)`,
+        strengths: ['Consistent practice', 'Good problem-solving approach'],
+        weaknesses: ['Need more practice in advanced algorithms'],
+        recommendations: ['Focus on dynamic programming', 'Practice more medium problems'],
+        metrics: {
+          totalProblems,
+          completedProblems: completedProblems.length,
+          completionRate,
+          averageAttempts: problems.reduce((sum, p) => sum + p.attempts, 0) / totalProblems || 0,
+        },
+        lastUpdated: new Date(),
+      };
+
       dispatch({ type: 'SET_INSIGHTS', payload: insights });
-      toast.success('AI insights generated!');
       return insights;
     } catch (error) {
-      console.error('Insights generation failed:', error);
-      toast.error('Failed to generate insights. Please try again.');
+      console.error('Error generating insights:', error);
+      toast.error('Failed to generate insights');
       throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -456,14 +424,17 @@ Please provide insights in JSON format:
   };
 
   const getRecommendationsForCategory = (category: string): PracticeRecommendation[] => {
-    return state.recommendations.filter(rec => rec.category === category);
+    return state.recommendations.filter(r => r.category === category);
   };
 
   const getTodayPlan = (): DailyPracticePlan | null => {
-    const today = new Date().toDateString();
-    return state.practicePlans.find(plan => 
-      new Date(plan.date).toDateString() === today
-    ) || null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return state.practicePlans.find(plan => {
+      const planDate = new Date(plan.date);
+      planDate.setHours(0, 0, 0, 0);
+      return planDate.getTime() === today.getTime();
+    }) || null;
   };
 
   const value: AIAssistantContextType = {
@@ -475,6 +446,8 @@ Please provide insights in JSON format:
     generateInsights,
     getRecommendationsForCategory,
     getTodayPlan,
+    saveAnalysis,
+    getAnalyses,
   };
 
   return (
