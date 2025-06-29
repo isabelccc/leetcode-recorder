@@ -7,5 +7,21 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true
+  },
+  esbuild: {
+    supported: {
+      'top-level-await': true
+    }
+  },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Suppress the "use client" directive warning from react-hot-toast
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE' && warning.message.includes('use client')) {
+          return;
+        }
+        warn(warning);
+      }
+    }
   }
 }) 
