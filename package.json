@@ -2,6 +2,7 @@
   "name": "leetcode-recorder",
   "version": "1.0.0",
   "description": "A comprehensive LeetCode progress tracker with code compiler and notes",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
