@@ -34,6 +34,7 @@ export const problemService = {
       createdAt: new Date(problem.created_at),
       updatedAt: new Date(problem.updated_at),
       isStarred: problem.is_starred || false,
+      description: problem.description || '',
     })) || [];
   },
 
@@ -71,6 +72,7 @@ export const problemService = {
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
       isStarred: data.is_starred || false,
+      description: data.description || '',
     };
   },
 
@@ -93,6 +95,7 @@ export const problemService = {
         attempts: problem.attempts,
         completed_at: problem.completedAt?.toISOString(),
         user_id: userId,
+        description: problem.description,
       })
       .select()
       .single();
@@ -120,6 +123,7 @@ export const problemService = {
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
       isStarred: data.is_starred || false,
+      description: data.description || '',
     };
   },
 
@@ -175,6 +179,7 @@ export const problemService = {
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
       isStarred: data.is_starred || false,
+      description: data.description || '',
     };
   },
 
@@ -256,6 +261,7 @@ export const problemService = {
       createdAt: new Date(problem.created_at),
       updatedAt: new Date(problem.updated_at),
       isStarred: problem.is_starred || false,
+      description: problem.description || '',
     })) || [];
   },
 };

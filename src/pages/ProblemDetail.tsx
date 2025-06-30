@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const ProblemDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -38,7 +40,11 @@ const ProblemDetail: React.FC = () => {
     spaceComplexity: '',
     tags: '',
     url: '',
+    description: '',
   });
+
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [descValue, setDescValue] = useState(problem?.description || '');
 
   React.useEffect(() => {
     if (problem) {
@@ -54,6 +60,7 @@ const ProblemDetail: React.FC = () => {
         spaceComplexity: problem.spaceComplexity || '',
         tags: problem.tags.join(', '),
         url: problem.url,
+        description: problem.description || '',
       });
     }
   }, [problem]);
@@ -231,13 +238,25 @@ const ProblemDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Description */}
-      {problem.description && (
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
-          <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: problem.description }} />
-        </div>
-      )}
+      {/* Description Section */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-2">Description</h2>
+        {isEditing ? (
+          <ReactQuill
+            value={editData.description || ''}
+            onChange={val => setEditData(prev => ({ ...prev, description: val }))}
+            className="mb-2 bg-white"
+            theme="snow"
+          />
+        ) : (
+          <div
+            className="prose max-w-none text-base"
+            dangerouslySetInnerHTML={{ __html: problem.description || '<em>No description provided.</em>' }}
+            style={{ wordBreak: 'break-word' }}
+          />
+        )}
+        <style>{`.prose img { max-width: 100%; height: auto; border-radius: 0.5rem; margin-top: 1rem; margin-bottom: 1rem; }`}</style>
+      </div>
 
       {/* Status and Progress */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

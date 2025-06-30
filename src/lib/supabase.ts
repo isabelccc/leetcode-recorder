@@ -32,6 +32,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           user_id: string;
+          description: string;
         };
         Insert: {
           id?: string;
@@ -51,6 +52,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           user_id: string;
+          description?: string;
         };
         Update: {
           id?: string;
@@ -70,6 +72,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           user_id?: string;
+          description?: string;
         };
       };
       users: {
