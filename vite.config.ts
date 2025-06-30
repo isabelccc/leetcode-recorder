@@ -20,8 +20,22 @@ export default defineConfig({
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE' && warning.message.includes('use client')) {
           return;
         }
+        // Suppress external dependency warnings for Supabase
+        if (warning.code === 'UNRESOLVED_IMPORT' && warning.message.includes('@supabase/supabase-js')) {
+          return;
+        }
         warn(warning);
+      },
+      external: [],
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js']
+        }
       }
     }
+  },
+  optimizeDeps: {
+    include: ['@supabase/supabase-js']
   }
 }) 
