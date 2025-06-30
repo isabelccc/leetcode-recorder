@@ -112,20 +112,23 @@ const ProblemDetail: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editData.title.trim() || !editData.category.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
-
-    updateProblem(problem.id, {
-      ...editData,
-      tags: editData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
-      completedAt: editData.status === 'Completed' ? new Date() : undefined,
-    });
-
-    setIsEditing(false);
-    toast.success('Problem updated successfully!');
+    try {
+      await updateProblem(problem.id, {
+        ...editData,
+        tags: editData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+        completedAt: editData.status === 'Completed' ? new Date() : undefined,
+      });
+      setIsEditing(false);
+      toast.success('Problem updated successfully!');
+    } catch (error) {
+      toast.error('Failed to update problem');
+      console.error(error);
+    }
   };
 
   const handleStatusChange = (newStatus: string) => {
