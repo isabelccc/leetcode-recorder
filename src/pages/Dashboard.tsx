@@ -21,7 +21,9 @@ import {
   LabelList,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  LineChart,
+  Line
 } from 'recharts';
 import { supabase } from '../lib/supabase'; // adjust path as needed
 import ReactQuill from 'react-quill';
@@ -92,6 +94,7 @@ const Dashboard: React.FC = () => {
         input.setAttribute('accept', 'image/*');
         input.click();
         input.onchange = async () => {
+          if (!input.files || input.files.length === 0) return;
           const file = input.files[0];
           if (file) {
             // Upload to Supabase Storage
@@ -109,7 +112,7 @@ const Dashboard: React.FC = () => {
               .getPublicUrl(data.path);
             const url = urlData.publicUrl;
             // Insert image into editor
-            const quill = this.quill;
+            const quill = (this as any).quill;
             const range = quill.getSelection();
             quill.insertEmbed(range.index, 'image', url);
           }
@@ -117,6 +120,22 @@ const Dashboard: React.FC = () => {
       }
     }
   };
+
+  // Timeline data: count of problems completed per day
+  const completedTimeline: { date: string; count: number }[] = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    problems.forEach((p) => {
+      if (p.status === 'Completed' && p.completedAt) {
+        // Format date as yyyy-MM-dd
+        const date = format(new Date(p.completedAt), 'yyyy-MM-dd');
+        counts[date] = (counts[date] || 0) + 1;
+      }
+    });
+    // Sort by date ascending
+    return Object.entries(counts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+  }, [problems]);
 
   return (
     <div className="p-6 space-y-6">
@@ -235,6 +254,24 @@ const Dashboard: React.FC = () => {
             <p className="text-gray-500 text-sm">No problems added yet</p>
           )}
         </div>
+      </div>
+
+      {/* Timeline of Completed Problems */}
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Problems Completed Per Day</h3>
+        {completedTimeline.length > 0 ? (
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={completedTimeline} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(value) => [`${value} problems`, 'Completed']} />
+              <Legend />
+              <Line type="monotone" dataKey="count" stroke="#34d399" strokeWidth={3} dot={{ r: 4 }} name="Completed" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-gray-500 text-sm">No problems completed yet</p>
+        )}
       </div>
 
       {/* Recent Activity */}

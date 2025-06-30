@@ -377,23 +377,9 @@ int main() {
               {isRunning ? 'Running...' : 'Run'}
             </button>
             
-            <button
-              onClick={mockExecution}
-              disabled={isRunning}
-              className="btn btn-secondary flex items-center"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Test Mock
-            </button>
+           
             
-            <button
-              onClick={testAPI}
-              disabled={isRunning}
-              className="btn btn-secondary flex items-center"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Test API
-            </button>
+           
           </div>
         </div>
       </div>
