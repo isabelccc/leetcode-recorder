@@ -15,6 +15,7 @@ export interface LeetCodeProblem {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
+  description?: string;
 }
 
 export interface ProgressStats {

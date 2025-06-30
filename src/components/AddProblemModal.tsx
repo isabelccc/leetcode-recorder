@@ -3,6 +3,8 @@ import { X } from 'lucide-react';
 import { useProblems } from '../contexts/ProblemContext';
 import { LeetCodeProblem } from '../types';
 import toast from 'react-hot-toast';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 // Helper to extract slug from LeetCode URL
 function getLeetCodeSlug(url: string): string | null {
@@ -10,19 +12,15 @@ function getLeetCodeSlug(url: string): string | null {
   return match ? match[1] : null;
 }
 
-// Fetch problem details from LeetCode GraphQL
+// Fetch problem details from LeetCode GraphQL via local proxy
 async function fetchLeetCodeProblem(slug: string) {
-  const res = await fetch('https://leetcode.com/graphql', {
+  const res = await fetch('http://localhost:4000/leetcode', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query: `query getQuestionDetail($titleSlug: String!) { question(titleSlug: $titleSlug) { title difficulty topicTags { name } } }`,
-      variables: { titleSlug: slug },
-    }),
+    body: JSON.stringify({ slug }),
   });
-  if (!res.ok) throw new Error('Failed to fetch from LeetCode');
-  const data = await res.json();
-  return data.data?.question;
+  if (!res.ok) throw new Error('Failed to fetch from proxy');
+  return await res.json();
 }
 
 interface AddProblemModalProps {
@@ -44,6 +42,7 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
     language: 'JavaScript',
     timeComplexity: '',
     spaceComplexity: '',
+    description: '',
   });
   const [parsing, setParsing] = useState(false);
 
@@ -60,7 +59,9 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
             ...prev,
             title: problem.title || prev.title,
             difficulty: problem.difficulty || prev.difficulty,
+            description: problem.content || prev.description,
             tags: problem.topicTags?.map((t: any) => t.name).join(', ') || prev.tags,
+            category: problem.topicTags?.[0]?.name || prev.category,
           }));
           toast.success('LeetCode problem details loaded!');
         } else {
@@ -80,6 +81,10 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleDescriptionChange = (value: string) => {
+    setFormData(prev => ({ ...prev, description: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -103,6 +108,7 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
       language: 'JavaScript',
       timeComplexity: '',
       spaceComplexity: '',
+      description: '',
     });
   };
 
@@ -192,6 +198,10 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Solution</label>
             <textarea name="solution" value={formData.solution} onChange={handleChange} rows={6} className="textarea font-mono text-sm" placeholder="Paste your solution here..." />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <ReactQuill theme="snow" value={formData.description} onChange={handleDescriptionChange} className="bg-white" />
           </div>
           <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
             <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>

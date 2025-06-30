@@ -231,6 +231,14 @@ const ProblemDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* Description */}
+      {problem.description && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
+          <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: problem.description }} />
+        </div>
+      )}
+
       {/* Status and Progress */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card p-6">
