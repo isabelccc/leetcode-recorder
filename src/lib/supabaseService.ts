@@ -33,6 +33,7 @@ export const problemService = {
       completedAt: problem.completed_at ? new Date(problem.completed_at) : undefined,
       createdAt: new Date(problem.created_at),
       updatedAt: new Date(problem.updated_at),
+      isStarred: problem.is_starred || false,
     })) || [];
   },
 
@@ -69,6 +70,7 @@ export const problemService = {
       completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
+      isStarred: data.is_starred || false,
     };
   },
 
@@ -117,6 +119,7 @@ export const problemService = {
       completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
+      isStarred: data.is_starred || false,
     };
   },
 
@@ -139,6 +142,7 @@ export const problemService = {
     if (updates.url !== undefined) updateData.url = updates.url;
     if (updates.attempts !== undefined) updateData.attempts = updates.attempts;
     if (updates.completedAt !== undefined) updateData.completed_at = updates.completedAt?.toISOString();
+    if (updates.isStarred !== undefined) updateData.is_starred = updates.isStarred;
 
     const { data, error } = await supabase
       .from('problems')
@@ -170,6 +174,7 @@ export const problemService = {
       completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
+      isStarred: data.is_starred || false,
     };
   },
 
@@ -185,6 +190,38 @@ export const problemService = {
       console.error('Error deleting problem:', error);
       throw error;
     }
+  },
+
+  // Toggle star status of a problem
+  async toggleStar(id: string, userId: string): Promise<boolean> {
+    // First get the current star status
+    const { data: currentProblem, error: fetchError } = await supabase
+      .from('problems')
+      .select('is_starred')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching problem for star toggle:', fetchError);
+      throw fetchError;
+    }
+
+    const newStarStatus = !(currentProblem?.is_starred || false);
+
+    // Update the star status
+    const { error: updateError } = await supabase
+      .from('problems')
+      .update({ is_starred: newStarStatus })
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error updating star status:', updateError);
+      throw updateError;
+    }
+
+    return newStarStatus;
   },
 
   // Search problems
@@ -218,6 +255,7 @@ export const problemService = {
       completedAt: problem.completed_at ? new Date(problem.completed_at) : undefined,
       createdAt: new Date(problem.created_at),
       updatedAt: new Date(problem.updated_at),
+      isStarred: problem.is_starred || false,
     })) || [];
   },
 };

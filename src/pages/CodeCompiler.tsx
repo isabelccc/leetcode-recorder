@@ -20,7 +20,7 @@ const languageMapping: Record<string, { id: number; name: string; extension: str
 
 const CodeCompiler: React.FC = () => {
   const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('python');
+  const [language, setLanguage] = useState('cpp');
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [executionResult, setExecutionResult] = useState<CodeExecutionResult | null>(null);

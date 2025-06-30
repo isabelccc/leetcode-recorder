@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import Homepage from './pages/Homepage';
 import Dashboard from './pages/Dashboard';
 import ProblemList from './pages/ProblemList';
+import StarredProblems from './pages/StarredProblems';
 import ProblemDetail from './pages/ProblemDetail';
 import CodeCompiler from './pages/CodeCompiler';
 import Notes from './pages/Notes';
@@ -39,6 +40,16 @@ function App() {
                     <Sidebar />
                     <main className="flex-1 overflow-auto">
                       <ProblemList />
+                    </main>
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/starred" element={
+                <ProtectedRoute>
+                  <div className="flex h-screen bg-gray-50">
+                    <Sidebar />
+                    <main className="flex-1 overflow-auto">
+                      <StarredProblems />
                     </main>
                   </div>
                 </ProtectedRoute>

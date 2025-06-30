@@ -10,7 +10,8 @@ import {
   LogOut,
   User,
   Shield,
-  Brain
+  Brain,
+  Star
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProblems } from '../contexts/ProblemContext';
@@ -25,6 +26,7 @@ const Sidebar: React.FC = () => {
   const navItems = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/problems', icon: List, label: 'Problems' },
+    { path: '/starred', icon: Star, label: 'Starred Problems' },
     { path: '/compiler', icon: Code, label: 'Code Compiler' },
     { path: '/notes', icon: StickyNote, label: 'Notes' },
     { path: '/ai-assistant', icon: Brain, label: 'AI Assistant' },

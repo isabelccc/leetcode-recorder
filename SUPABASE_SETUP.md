@@ -24,6 +24,7 @@ VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_OPENAI_API_KEY=your_openai_api_key
 VITE_RAPIDAPI_KEY=your_rapidapi_key
+VITE_JUDGE0_API_HOST=judge0-ce.p.rapidapi.com
 ```
 
 ### Getting API Keys:
@@ -75,37 +76,41 @@ CREATE POLICY "Users can insert own profile" ON users
 ```sql
 CREATE TABLE problems (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
-  difficulty TEXT CHECK (difficulty IN ('Easy', 'Medium', 'Hard')) NOT NULL,
-  category TEXT NOT NULL,
+  difficulty TEXT CHECK (difficulty IN ('Easy', 'Medium', 'Hard')),
+  category TEXT,
   status TEXT DEFAULT 'Not Started' CHECK (status IN ('Not Started', 'In Progress', 'Completed', 'Failed')),
   notes TEXT,
   solution TEXT,
   language TEXT,
   time_complexity TEXT,
   space_complexity TEXT,
-  tags TEXT[] DEFAULT '{}',
+  tags TEXT[],
   url TEXT,
   attempts INTEGER DEFAULT 0,
   completed_at TIMESTAMP WITH TIME ZONE,
+  is_starred BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable RLS
 ALTER TABLE problems ENABLE ROW LEVEL SECURITY;
 
--- Create policies
+-- Create policy to allow users to see only their own problems
 CREATE POLICY "Users can view own problems" ON problems
   FOR SELECT USING (auth.uid() = user_id);
 
+-- Create policy to allow users to insert their own problems
 CREATE POLICY "Users can insert own problems" ON problems
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+-- Create policy to allow users to update their own problems
 CREATE POLICY "Users can update own problems" ON problems
   FOR UPDATE USING (auth.uid() = user_id);
 
+-- Create policy to allow users to delete their own problems
 CREATE POLICY "Users can delete own problems" ON problems
   FOR DELETE USING (auth.uid() = user_id);
 ```

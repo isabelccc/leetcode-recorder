@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { LeetCodeProblem, ProgressStats } from '../types';
+import { problemService } from '../lib/supabaseService';
+import { useAuth } from './AuthContext';
 import toast from 'react-hot-toast';
 
 interface ProblemState {
@@ -18,11 +20,13 @@ type ProblemAction =
 
 interface ProblemContextType {
   state: ProblemState;
-  addProblem: (problem: Omit<LeetCodeProblem, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateProblem: (id: string, updates: Partial<LeetCodeProblem>) => void;
-  deleteProblem: (id: string) => void;
+  addProblem: (problem: Omit<LeetCodeProblem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateProblem: (id: string, updates: Partial<LeetCodeProblem>) => Promise<void>;
+  deleteProblem: (id: string) => Promise<void>;
+  toggleStar: (id: string) => Promise<void>;
   getProblem: (id: string) => LeetCodeProblem | undefined;
   getProblemsByFilter: (filter: string) => LeetCodeProblem[];
+  loadProblems: () => Promise<void>;
 }
 
 const ProblemContext = createContext<ProblemContextType | undefined>(undefined);
@@ -144,57 +148,78 @@ function problemReducer(state: ProblemState, action: ProblemAction): ProblemStat
 
 export function ProblemProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(problemReducer, initialState);
+  const { user } = useAuth();
 
-  // Load problems from localStorage on mount
+  // Load problems from Supabase on mount and when user changes
   useEffect(() => {
-    const savedProblems = localStorage.getItem('leetcode-problems');
-    if (savedProblems) {
-      try {
-        const problems = JSON.parse(savedProblems).map((p: any) => ({
-          ...p,
-          createdAt: new Date(p.createdAt),
-          updatedAt: new Date(p.updatedAt),
-          completedAt: p.completedAt ? new Date(p.completedAt) : undefined,
-        }));
-        dispatch({ type: 'SET_PROBLEMS', payload: problems });
-      } catch (error) {
-        console.error('Error loading problems from localStorage:', error);
-      }
+    if (user) {
+      loadProblems();
+    } else {
+      dispatch({ type: 'SET_PROBLEMS', payload: [] });
     }
-  }, []);
+  }, [user]);
 
-  // Save problems to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('leetcode-problems', JSON.stringify(state.problems));
-  }, [state.problems]);
-
-  const addProblem = (problemData: Omit<LeetCodeProblem, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newProblem: LeetCodeProblem = {
-      ...problemData,
-      id: crypto.randomUUID(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    dispatch({ type: 'ADD_PROBLEM', payload: newProblem });
-    toast.success('Problem added successfully!');
+  const loadProblems = async () => {
+    if (!user) return;
+    
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const problems = await problemService.getProblems(user.id);
+      dispatch({ type: 'SET_PROBLEMS', payload: problems });
+    } catch (error) {
+      console.error('Error loading problems:', error);
+      toast.error('Failed to load problems');
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
   };
 
-  const updateProblem = (id: string, updates: Partial<LeetCodeProblem>) => {
-    const problem = state.problems.find(p => p.id === id);
-    if (problem) {
-      const updatedProblem = {
-        ...problem,
-        ...updates,
-        updatedAt: new Date(),
-      };
+  const addProblem = async (problemData: Omit<LeetCodeProblem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!user) {
+      toast.error('You must be logged in to add problems');
+      return;
+    }
+
+    try {
+      const newProblem = await problemService.createProblem(problemData, user.id);
+      dispatch({ type: 'ADD_PROBLEM', payload: newProblem });
+      toast.success('Problem added successfully!');
+    } catch (error) {
+      console.error('Error adding problem:', error);
+      toast.error('Failed to add problem');
+    }
+  };
+
+  const updateProblem = async (id: string, updates: Partial<LeetCodeProblem>) => {
+    if (!user) {
+      toast.error('You must be logged in to update problems');
+      return;
+    }
+
+    try {
+      const updatedProblem = await problemService.updateProblem(id, updates, user.id);
       dispatch({ type: 'UPDATE_PROBLEM', payload: updatedProblem });
       toast.success('Problem updated successfully!');
+    } catch (error) {
+      console.error('Error updating problem:', error);
+      toast.error('Failed to update problem');
     }
   };
 
-  const deleteProblem = (id: string) => {
-    dispatch({ type: 'DELETE_PROBLEM', payload: id });
-    toast.success('Problem deleted successfully!');
+  const deleteProblem = async (id: string) => {
+    if (!user) {
+      toast.error('You must be logged in to delete problems');
+      return;
+    }
+
+    try {
+      await problemService.deleteProblem(id, user.id);
+      dispatch({ type: 'DELETE_PROBLEM', payload: id });
+      toast.success('Problem deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting problem:', error);
+      toast.error('Failed to delete problem');
+    }
   };
 
   const getProblem = (id: string) => {
@@ -210,13 +235,35 @@ export function ProblemProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const toggleStar = async (id: string) => {
+    if (!user) {
+      toast.error('You must be logged in to star problems');
+      return;
+    }
+
+    try {
+      const newStarStatus = await problemService.toggleStar(id, user.id);
+      const problem = state.problems.find(p => p.id === id);
+      if (problem) {
+        const updatedProblem = { ...problem, isStarred: newStarStatus };
+        dispatch({ type: 'UPDATE_PROBLEM', payload: updatedProblem });
+        toast.success(newStarStatus ? 'Problem starred!' : 'Problem unstarred!');
+      }
+    } catch (error) {
+      console.error('Error toggling star:', error);
+      toast.error('Failed to update star status');
+    }
+  };
+
   const value: ProblemContextType = {
     state,
     addProblem,
     updateProblem,
     deleteProblem,
+    toggleStar,
     getProblem,
     getProblemsByFilter,
+    loadProblems,
   };
 
   return (

@@ -10,6 +10,16 @@ import {
   Target
 } from 'lucide-react';
 import { format } from 'date-fns';
+import {
+  BarChart,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  Bar,
+  ResponsiveContainer,
+  LabelList
+} from 'recharts';
 
 const Dashboard: React.FC = () => {
   const { state } = useProblems();
@@ -38,6 +48,14 @@ const Dashboard: React.FC = () => {
   };
 
   const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+
+  // Prepare data for category bar chart
+  const categoryData = Object.entries(stats.categories).map(([category, catStats]) => ({
+    category,
+    Completed: catStats.completed,
+    Remaining: catStats.total - catStats.completed,
+    Total: catStats.total
+  }));
 
   return (
     <div className="p-6 space-y-6">
@@ -129,24 +147,32 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Progress */}
+        {/* Category Progress as Bar Chart */}
         <div className="card p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Progress by Category</h3>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {Object.entries(stats.categories).map(([category, categoryStats]) => (
-              <div key={category} className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700 truncate flex-1">
-                  {category}
-                </span>
-                <span className="text-sm text-gray-500 ml-2">
-                  {categoryStats.completed}/{categoryStats.total}
-                </span>
-              </div>
-            ))}
-            {Object.keys(stats.categories).length === 0 && (
-              <p className="text-gray-500 text-sm">No problems added yet</p>
-            )}
-          </div>
+          {categoryData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={Math.max(120, categoryData.length * 40)}>
+              <BarChart
+                data={categoryData}
+                layout="vertical"
+                margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
+                barCategoryGap={16}
+              >
+                <XAxis type="number" hide domain={[0, (dataMax: number) => Math.max(dataMax, 1)]} />
+                <YAxis type="category" dataKey="category" width={120} tick={{ fontSize: 14 }} />
+                <Tooltip formatter={(value: any, name: string, props: any) => [value, name]} />
+                <Legend />
+                <Bar dataKey="Completed" stackId="a" fill="#34d399">
+                  <LabelList dataKey="Completed" position="insideLeft" />
+                </Bar>
+                <Bar dataKey="Remaining" stackId="a" fill="#d1d5db">
+                  <LabelList dataKey={({ Completed, Total }) => `${Completed}/${Total}`} position="right" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-gray-500 text-sm">No problems added yet</p>
+          )}
         </div>
       </div>
 

@@ -16,6 +16,7 @@ export interface LeetCodeProblem {
   createdAt: Date;
   updatedAt: Date;
   description?: string;
+  isStarred?: boolean;
 }
 
 export interface ProgressStats {

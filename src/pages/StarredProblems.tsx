@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProblems } from '../contexts/ProblemContext';
 import { 
-  Plus, 
   Search, 
-  Filter, 
   SortAsc, 
   SortDesc,
   Edit,
@@ -17,18 +15,18 @@ import {
   Star
 } from 'lucide-react';
 import { format } from 'date-fns';
-import AddProblemModal from '../components/AddProblemModal';
 
-const ProblemList: React.FC = () => {
+const StarredProblems: React.FC = () => {
   const { state, deleteProblem, toggleStar } = useProblems();
   const { problems } = state;
   const [searchTerm, setSearchTerm] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [starFilter, setStarFilter] = useState<boolean | null>(null);
   const [sortField, setSortField] = useState<string>('title');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Filter to only starred problems
+  const starredProblems = problems.filter(problem => problem.isStarred);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -48,16 +46,15 @@ const ProblemList: React.FC = () => {
     }
   };
 
-  const filteredProblems = problems
+  const filteredProblems = starredProblems
     .filter(problem => {
       const matchesSearch = problem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            problem.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            problem.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesDifficulty = !difficultyFilter || problem.difficulty === difficultyFilter;
       const matchesStatus = !statusFilter || problem.status === statusFilter;
-      const matchesStar = starFilter === null || problem.isStarred === starFilter;
       
-      return matchesSearch && matchesDifficulty && matchesStatus && matchesStar;
+      return matchesSearch && matchesDifficulty && matchesStatus;
     })
     .sort((a, b) => {
       let aValue: any = a[sortField as keyof typeof a];
@@ -100,26 +97,19 @@ const ProblemList: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Problems</h1>
-          <p className="text-gray-600 mt-2">Manage your LeetCode problems</p>
+          <h1 className="text-3xl font-bold text-gray-900">Starred Problems</h1>
+          <p className="text-gray-600 mt-2">Your favorite problems</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="btn btn-primary flex items-center"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Problem
-        </button>
       </div>
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search problems..."
+              placeholder="Search starred problems..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input pl-10"
@@ -148,22 +138,9 @@ const ProblemList: React.FC = () => {
             <option value="Completed">Completed</option>
             <option value="Failed">Failed</option>
           </select>
-
-          <select
-            value={starFilter === null ? '' : starFilter ? 'starred' : 'unstarred'}
-            onChange={(e) => {
-              const value = e.target.value;
-              setStarFilter(value === '' ? null : value === 'starred');
-            }}
-            className="input"
-          >
-            <option value="">All Problems</option>
-            <option value="starred">Starred Only</option>
-            <option value="unstarred">Unstarred Only</option>
-          </select>
           
           <div className="text-sm text-gray-500 flex items-center">
-            {filteredProblems.length} of {problems.length} problems
+            {filteredProblems.length} of {starredProblems.length} starred problems
           </div>
         </div>
       </div>
@@ -274,11 +251,7 @@ const ProblemList: React.FC = () => {
                       onClick={() => toggleStar(problem.id)}
                       className="hover:scale-110 transition-transform"
                     >
-                      {problem.isStarred ? (
-                        <Star className="w-5 h-5 text-warning-600 fill-current" />
-                      ) : (
-                        <Star className="w-5 h-5 text-gray-400 hover:text-warning-600" />
-                      )}
+                      <Star className="w-5 h-5 text-warning-600 fill-current" />
                     </button>
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
@@ -314,25 +287,17 @@ const ProblemList: React.FC = () => {
         {filteredProblems.length === 0 && (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
-              <Search className="w-12 h-12 mx-auto" />
+              <Star className="w-12 h-12 mx-auto" />
             </div>
-            <p className="text-gray-500">No problems found</p>
+            <p className="text-gray-500">No starred problems found</p>
             <p className="text-sm text-gray-400 mt-1">
-              {problems.length === 0 ? 'Add your first problem to get started' : 'Try adjusting your filters'}
+              {starredProblems.length === 0 ? 'Star some problems to see them here' : 'Try adjusting your filters'}
             </p>
           </div>
         )}
       </div>
-
-      {/* Add Problem Modal */}
-      {showAddModal && (
-        <AddProblemModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
     </div>
   );
 };
 
-export default ProblemList; 
+export default StarredProblems; 
