@@ -9,45 +9,19 @@ const JUDGE0_API_URL = (import.meta as any).env?.VITE_JUDGE0_API_URL || 'https:/
 
 // Language mapping for Judge0
 const languageMapping: Record<string, { id: number; name: string; extension: string }> = {
-  javascript: { id: 63, name: 'JavaScript (Node.js 18.15.0)', extension: 'js' },
   python: { id: 71, name: 'Python (3.8.1)', extension: 'py' },
   java: { id: 62, name: 'Java (OpenJDK 13.0.1)', extension: 'java' },
   cpp: { id: 54, name: 'C++ (GCC 9.2.0)', extension: 'cpp' },
-  c: { id: 50, name: 'C (GCC 9.2.0)', extension: 'c' },
-  csharp: { id: 51, name: 'C# (Mono 6.6.0.161)', extension: 'cs' },
-  go: { id: 60, name: 'Go (1.13.5)', extension: 'go' },
-  rust: { id: 73, name: 'Rust (1.40.0)', extension: 'rs' },
-  typescript: { id: 74, name: 'TypeScript (3.7.4)', extension: 'ts' },
-  php: { id: 68, name: 'PHP (7.4.1)', extension: 'php' },
-  ruby: { id: 72, name: 'Ruby (2.7.0)', extension: 'rb' },
-  swift: { id: 83, name: 'Swift (5.2.3)', extension: 'swift' },
-  kotlin: { id: 78, name: 'Kotlin (1.3.70)', extension: 'kt' },
-  scala: { id: 81, name: 'Scala (2.13.2)', extension: 'scala' },
-  r: { id: 80, name: 'R (4.0.0)', extension: 'r' },
-  dart: { id: 87, name: 'Dart (2.19.2)', extension: 'dart' }
 };
 
 const CodeCompiler: React.FC = () => {
   const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('javascript');
+  const [language, setLanguage] = useState('python');
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [executionResult, setExecutionResult] = useState<CodeExecutionResult | null>(null);
 
   const codeTemplates: Record<string, CodeTemplate> = {
-    javascript: {
-      language: 'javascript',
-      name: 'JavaScript',
-      template: `// JavaScript code template
-function solution() {
-    // Your solution here
-    console.log("Hello, LeetCode!");
-}
-
-// Test cases
-solution();
-`
-    },
     python: {
       language: 'python',
       name: 'Python',
@@ -102,6 +76,13 @@ int main() {
       return;
     }
 
+    // Check if API key is available
+    const apiKey = (import.meta as any).env?.VITE_RAPIDAPI_KEY;
+    if (!apiKey) {
+      toast.error('RapidAPI key not configured. Please check your .env file.');
+      return;
+    }
+
     setIsRunning(true);
     setOutput('Compiling and running code...\n');
     
@@ -117,7 +98,7 @@ int main() {
         headers: {
           'Content-Type': 'application/json',
           'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-          'X-RapidAPI-Key': (import.meta as any).env?.VITE_RAPIDAPI_KEY || '',
+          'X-RapidAPI-Key': apiKey,
         },
         body: JSON.stringify({
           source_code: code,
@@ -131,11 +112,14 @@ int main() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error(`Failed to submit code: ${submitResponse.statusText}`);
+        const errorText = await submitResponse.text();
+        console.error('Judge0 submission error:', submitResponse.status, errorText);
+        throw new Error(`Failed to submit code: ${submitResponse.status} - ${errorText}`);
       }
 
       const submission = await submitResponse.json();
       const token = submission.token;
+      console.log('Code submitted successfully, token:', token);
 
       // Step 2: Poll for results
       let result = null;
@@ -148,15 +132,18 @@ int main() {
         const resultResponse = await fetch(`${JUDGE0_API_URL}/submissions/${token}`, {
           headers: {
             'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-            'X-RapidAPI-Key': (import.meta as any).env?.VITE_RAPIDAPI_KEY || '',
+            'X-RapidAPI-Key': apiKey,
           }
         });
 
         if (!resultResponse.ok) {
-          throw new Error(`Failed to get result: ${resultResponse.statusText}`);
+          const errorText = await resultResponse.text();
+          console.error('Judge0 result error:', resultResponse.status, errorText);
+          throw new Error(`Failed to get result: ${resultResponse.status} - ${errorText}`);
         }
 
         result = await resultResponse.json();
+        console.log('Poll result:', result.status?.id, result.status?.description);
         
         // Check if execution is complete
         if (result.status && result.status.id > 2) {
