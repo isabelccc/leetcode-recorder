@@ -5,6 +5,8 @@ import { LeetCodeProblem } from '../types';
 import toast from 'react-hot-toast';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+// @ts-ignore
+import Tesseract from 'tesseract.js';
 
 // Helper to extract slug from LeetCode URL
 function getLeetCodeSlug(url: string): string | null {
@@ -45,6 +47,8 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
     description: '',
   });
   const [parsing, setParsing] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   const handleUrlChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const url = e.target.value;
@@ -110,6 +114,60 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
       spaceComplexity: '',
       description: '',
     });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedImage(file);
+    setOcrLoading(true);
+    try {
+      const { data: { text } } = await Tesseract.recognize(file, 'eng');
+      
+      // Clean and filter the OCR text
+      const lines = text.split('\n')
+        .map((l: string) => l.trim())
+        .filter((line: string) => {
+          // Filter out common LeetCode navigation elements
+          const navigationKeywords = [
+            'leetcode', 'problems', 'submissions', 'discuss', 'solution',
+            'medium', 'easy', 'hard', 'topics', 'companies', 'premium',
+            'sign in', 'sign up', 'profile', 'settings', 'logout',
+            '©', 'privacy', 'terms', 'help', 'feedback'
+          ];
+          
+          const lowerLine = line.toLowerCase();
+          return !navigationKeywords.some(keyword => lowerLine.includes(keyword)) &&
+                 line.length > 2 && // Filter out very short lines
+                 !/^\d+$/.test(line) && // Filter out pure numbers
+                 !/^[A-Z\s]+$/.test(line) && // Filter out all caps navigation
+                 line.length < 200; // Filter out very long lines (likely not titles)
+        })
+        .filter(Boolean);
+      
+      console.log('Filtered OCR lines:', lines); // Debug log
+      
+      // Try to find the problem title (usually the first substantial line)
+      if (lines.length > 0) {
+        const potentialTitle = lines[0];
+        // Check if it looks like a problem title (contains common patterns)
+        if (potentialTitle.length > 3 && potentialTitle.length < 100) {
+          setFormData(prev => ({ ...prev, title: potentialTitle }));
+        }
+      }
+      
+      // Use remaining lines as description
+      if (lines.length > 1) {
+        const descriptionLines = lines.slice(1).filter(line => line.length > 5);
+        if (descriptionLines.length > 0) {
+          setFormData(prev => ({ ...prev, description: descriptionLines.join('\n\n') }));
+        }
+      }
+      
+    } catch (err) {
+      alert('OCR failed: ' + err);
+    }
+    setOcrLoading(false);
   };
 
   if (!isOpen) return null;
@@ -202,6 +260,11 @@ const AddProblemModal: React.FC<AddProblemModalProps> = ({ isOpen, onClose }) =>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
             <ReactQuill theme="snow" value={formData.description} onChange={handleDescriptionChange} className="bg-white" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mt-4">Upload Screenshot (auto-parse)</label>
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="mt-1 block w-full" />
+            {ocrLoading && <div className="text-blue-500 mt-2">Parsing image...</div>}
           </div>
           <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
             <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
