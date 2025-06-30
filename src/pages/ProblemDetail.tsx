@@ -12,7 +12,6 @@ import {
   XCircle,
   PlayCircle,
   Tag,
-  Calendar,
   Target,
   Code
 } from 'lucide-react';
@@ -45,6 +44,16 @@ const ProblemDetail: React.FC = () => {
 
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [descValue, setDescValue] = useState(problem?.description || '');
+
+  const quillModules = {
+    toolbar: [
+      [{ 'header': [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image'],
+      ['clean']
+    ]
+  };
 
   React.useEffect(() => {
     if (problem) {
@@ -247,6 +256,7 @@ const ProblemDetail: React.FC = () => {
             onChange={val => setEditData(prev => ({ ...prev, description: val }))}
             className="mb-2 bg-white"
             theme="snow"
+            modules={quillModules}
           />
         ) : (
           <div

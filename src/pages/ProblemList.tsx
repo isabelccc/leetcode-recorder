@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useProblems } from '../contexts/ProblemContext';
 import { 
   Plus, 
-  Search, 
-  Filter, 
+  Search,
   SortAsc, 
   SortDesc,
   Edit,

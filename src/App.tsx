@@ -16,6 +16,16 @@ import { ProblemProvider } from './contexts/ProblemContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AIAssistantProvider } from './contexts/AIAssistantContext';
 
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link', 'image'],
+    ['clean']
+  ]
+};
+
 function App() {
   return (
     <AuthProvider>

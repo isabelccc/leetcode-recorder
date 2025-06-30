@@ -18,8 +18,13 @@ import {
   Legend,
   Bar,
   ResponsiveContainer,
-  LabelList
+  LabelList,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
+import { supabase } from '../lib/supabase'; // adjust path as needed
+import ReactQuill from 'react-quill';
 
 const Dashboard: React.FC = () => {
   const { state } = useProblems();
@@ -56,6 +61,62 @@ const Dashboard: React.FC = () => {
     Remaining: catStats.total - catStats.completed,
     Total: catStats.total
   }));
+
+  // Color palette for pie chart
+  const pieColors = [
+    '#34d399', // green
+    '#60a5fa', // blue
+    '#fbbf24', // yellow
+    '#f87171', // red
+    '#a78bfa', // purple
+    '#f472b6', // pink
+    '#38bdf8', // sky
+    '#facc15', // amber
+    '#4ade80', // emerald
+    '#f472b6', // rose
+  ];
+
+  const quillModules = {
+    toolbar: [
+      [{ 'header': [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image'],
+      ['clean']
+    ],
+    // Custom image handler
+    handlers: {
+      image: function () {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (file) {
+            // Upload to Supabase Storage
+            const { data, error } = await supabase.storage
+              .from('problem-images')
+              .upload(`public/${Date.now()}-${file.name}`, file, { upsert: true });
+            if (error) {
+              alert('Upload failed');
+              return;
+            }
+            // Get public URL
+            const { data: urlData } = supabase
+              .storage
+              .from('problem-images')
+              .getPublicUrl(data.path);
+            const url = urlData.publicUrl;
+            // Insert image into editor
+            const quill = this.quill;
+            const range = quill.getSelection();
+            quill.insertEmbed(range.index, 'image', url);
+          }
+        };
+      }
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -147,28 +208,28 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Progress as Bar Chart */}
+        {/* Category Progress as Pie Chart */}
         <div className="card p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Progress by Category</h3>
           {categoryData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(120, categoryData.length * 40)}>
-              <BarChart
-                data={categoryData}
-                layout="vertical"
-                margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
-                barCategoryGap={16}
-              >
-                <XAxis type="number" hide domain={[0, (dataMax: number) => Math.max(dataMax, 1)]} />
-                <YAxis type="category" dataKey="category" width={120} tick={{ fontSize: 14 }} />
-                <Tooltip formatter={(value: any, name: string, props: any) => [value, name]} />
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  dataKey="Completed"
+                  nameKey="category"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ category, Completed }) => `${category}: ${Completed}`}
+                >
+                  {categoryData.map((entry, idx) => (
+                    <Cell key={`cell-${idx}`} fill={pieColors[idx % pieColors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name, props) => [`${value} completed`, '']} />
                 <Legend />
-                <Bar dataKey="Completed" stackId="a" fill="#34d399">
-                  <LabelList dataKey="Completed" position="insideLeft" />
-                </Bar>
-                <Bar dataKey="Remaining" stackId="a" fill="#d1d5db">
-                  <LabelList dataKey={({ Completed, Total }) => `${Completed}/${Total}`} position="right" />
-                </Bar>
-              </BarChart>
+              </PieChart>
             </ResponsiveContainer>
           ) : (
             <p className="text-gray-500 text-sm">No problems added yet</p>
